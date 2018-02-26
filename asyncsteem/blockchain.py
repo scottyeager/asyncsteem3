@@ -1,6 +1,5 @@
-#!/usr/bin/python
-from jsonrpc import RpcClient
-from blockfinder import DateFinder
+from .jsonrpc import RpcClient
+from .blockfinder import DateFinder
 import copy
 import dateutil.parser
 import time
@@ -9,7 +8,7 @@ from datetime import datetime as dt
 from dateutil import relativedelta
 
 
-class ActiveBlockChain:
+class ActiveBlockChain(object):
     """Class for following the blockchain as it grows, or processing it from a given block in the past"""
     def __init__(self,
                  reactor,
@@ -65,7 +64,7 @@ class ActiveBlockChain:
             self.initial_batch_size = initial_batch_size
             #Wake up the RpcClient
             self.rpc()
-        except Exception,ex:
+        except Exception as ex:
             self.log.failure("Error in ActiveBlockChain constructor: {err!r}",err=str(ex))
     def register_bot(self,bot,botname):
         """Register a bot with the active blockchain.
@@ -83,7 +82,7 @@ class ActiveBlockChain:
                         self.active_events[key] = dict()
                     #Add handler by bot name.
                     self.active_events[key][botname] = getattr(bot,key)
-        except Exception,ex:
+        except Exception as ex:
             self.log.failure("Error in ActiveBlockChain::register_bot : {err!r}",err=str(ex))
     def _get_block(self,blockno):
         try:
@@ -124,14 +123,14 @@ class ActiveBlockChain:
                                 #Do an extra get_block if we are behind to far.
                                 self._get_block(self.last_block+1)
                                 self.log.info("Lost synchonysation, spinning up an extra parallel get_block query to {count!r}",count=self.active_block_queries)
-                except Exception,ex:
+                except Exception as ex:
                     self.log.failure("Error in process_block_event : {err!r}",err=str(ex))
             if self.last_block < blockno:
                 self.last_block = blockno
             cmd = self.rpc.get_block(blockno)
             cmd.on_result(process_block_event)
             self.active_block_queries = self.active_block_queries + 1
-        except Exception,ex:
+        except Exception as ex:
             self.log.failure("Error in ActiveBlockChain::_get_block : {err!r}",err=str(ex))
     def _bootstrap(self,block):
         try:
@@ -139,7 +138,7 @@ class ActiveBlockChain:
             #Start up eight paralel https queries so we can catch up with the blockchain.
             for index in range(0,self.initial_batch_size):
                 self._get_block(block+index)
-        except Exception,ex:
+        except Exception as ex:
             self.log.failure("Error in ActiveBlockChain::_bootstrap : {err!r}",err=str(ex))
     #The __call__ method is to be called only by the jsonrpc client!
     def _process_block(self,blk):
@@ -173,24 +172,24 @@ class ActiveBlockChain:
                             obj["hour"] = ddt.hour
                             if "hour" in self.active_events:
                                 #Invoke hour event on all bots that implement the hour method
-                                for bot in self.active_events["hour"].keys():
+                                for bot in list(self.active_events["hour"].keys()):
                                     try:
                                         self.active_events["hour"][bot](ts,obj,self.rpc)
-                                    except Exception,e:
+                                    except Exception as e:
                                         self.log.failure("Error in bot '{bot!r}' processing 'hour' event.",bot=bot)
                             if ddt.hour == 0 and "day" in self.active_events:
                                 #Invoke day event on all bots that implement the day method
-                                for bot in self.active_events["day"].keys():
+                                for bot in list(self.active_events["day"].keys()):
                                     try:
                                         self.active_events["day"][bot](ts,obj,self.rpc)
-                                    except Exception,e:
+                                    except Exception as e:
                                         self.log.failure("Error in bot '{bot!r}' processing 'day' event.",bot=bot)
                             if ddt.hour == 0 and ddt.weekday == 0 and "week" in self.active_events:
                                 #Invoke week event on all bots that implement the week method
-                                for bot in self.active_events["week"].keys():
+                                for bot in list(self.active_events["week"].keys()):
                                     try:
                                         self.active_events["week"][bot](ts,obj,self.rpc)
-                                    except Exception,e:
+                                    except Exception as e:
                                         self.log.failure("Error in bot '{bot!r}' processing 'week' event.",bot=bot)
                 blk_meta = dict()
                 #Copy relevant keys to block level meta.
@@ -203,10 +202,10 @@ class ActiveBlockChain:
                         blk_meta[k] = blk[k]
                 if "block" in self.active_events:
                     #Invoke block event  on all bots that implement the block method
-                    for bot in self.active_events["block"].keys():
+                    for bot in list(self.active_events["block"].keys()):
                         try:
                             self.active_events["block"][bot](ts,blk_meta,self.rpc)
-                        except Exception,e:
+                        except Exception as e:
                             self.log.failure("Error in bot '{bot!r}' processing 'block' event.",bot=bot)
                 if "transactions" in blk and isinstance(blk["transactions"],list):
                     for index in range(0,len(blk["transactions"])):
@@ -219,13 +218,13 @@ class ActiveBlockChain:
                         #And copy some relevant transaction meta
                         for k in ["ref_block_prefix","ref_block_num","expiration"]:
                             if k in blk["transactions"][index]:
-                                transaction_meta[k] = blk["transactions"][index][k] 
+                                transaction_meta[k] = blk["transactions"][index][k]
                         if "transaction" in self.active_events:
                             #Invoke transaction event  on all bots that implement the transaction method
-                            for bot in self.active_events["transaction"].keys():
+                            for bot in list(self.active_events["transaction"].keys()):
                                 try:
                                     self.active_events["transaction"][bot](ts,transaction_meta,self.rpc)
-                                except Exception,e:
+                                except Exception as e:
                                     self.log.failure("Error in bot '{bot!r}' processing 'transaction' event.",bot=bot)
                         if "operations" in blk["transactions"][index] and isinstance(blk["transactions"][index]["operations"],list):
                             for oindex in range(0,len(blk["transactions"][index]["operations"])):
@@ -238,7 +237,7 @@ class ActiveBlockChain:
                                         self.log.info("Received an operation not implemented by any bot: {op!r}",op=operation[0])
                                 if isinstance(operation,list) and \
                                    len(operation) == 2 and \
-                                   (isinstance(operation[0],str) or isinstance(operation[0],unicode)) and \
+                                   (isinstance(operation[0],str) or isinstance(operation[0],str)) and \
                                    isinstance(operation[1],object) and \
                                    operation[0] in self.active_events:
                                     #Start off with operation meta copied from the operation.
@@ -247,42 +246,10 @@ class ActiveBlockChain:
                                     #Copy in thansaction (and block) level meta.
                                     op["transaction_meta"] = copy.copy(transaction_meta)
                                     #Invoke specific operation event  on all bots that implement the specific operation method
-                                    for bot in self.active_events[operation[0]].keys():
+                                    for bot in list(self.active_events[operation[0]].keys()):
                                         try:
                                             self.active_events[operation[0]][bot](ts,op,self.rpc)
-                                        except Exception, e:
+                                        except Exception as e:
                                             self.log.failure("Error in bot '{bot!r}' processing '{op!r}' event.",bot=bot, op=operation[0])
-        except Exception,ex:
+        except Exception as ex:
             self.log.failure("Error in ActiveBlockChain::_process_block : {err!r}",err=str(ex))
-
-if __name__ == "__main__":
-    import sys
-    from twisted.internet import reactor
-    from twisted.logger import Logger, textFileLogObserver
-    class Bot:
-        def vote(self,tm,vote_event,client):
-            opp = client.get_content(vote_event["author"],vote_event["permlink"])
-            def process_vote_content(event, client):
-                start_rshares = 0.0
-                for vote in  event["active_votes"]:
-                    if vote["voter"] == vote_event["voter"] and vote["rshares"] < 0:
-                        if start_rshares + float(vote["rshares"]) < 0:
-                            print vote["time"],\
-                                    "FLAG",\
-                                    vote["voter"],"=>",vote_event["author"],\
-                                    vote["rshares"]," rshares (",\
-                                    start_rshares , "->", start_rshares + float(vote["rshares"]) , ")"
-                        else:
-                            print vote["time"],\
-                                    "DOWNVOTE",\
-                                    vote["voter"],"=>",vote_event["author"],\
-                                    vote["rshares"],"(",\
-                                    start_rshares , "->" , start_rshares + float(vote["rshares"]) , ")"
-                    start_rshares = start_rshares + float(vote["rshares"])
-            opp.on_result(process_vote_content)
-    obs = textFileLogObserver(sys.stdout)
-    log = Logger(observer=obs,namespace="blockchain_test")
-    bc = ActiveBlockChain(reactor,log,rewind_days=1,nodelist="stage")
-    bot=Bot()
-    bc.register_bot(bot,"testbot")
-    reactor.run()

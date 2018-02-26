@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import sys
+sys.path.append('../')
 import io
 from datetime import timedelta
 import time
@@ -32,23 +33,23 @@ class WatchingTheWatchers:
         self.by_pair[pair][0] = self.by_pair[pair][0] + flagpower
         self.dvcount = self.dvcount + 1
         if self.dvcount % 100 == 0:
-            print self.dvcount,"downvotes so far."
+            print(self.dvcount,"downvotes so far.")
     def set_account_info(self,account,fish,related):
         self.account_type[account] = fish
         if len(related) > 0:
             self.account_relations[account] = related
     def report(self,tm):
-        print "[REPORT]",tm
-        print " * account_type :",self.account_type
-        print
-        print " * account_relations :",self.account_relations
-        print
-        print " * by voter :",self.by_voter
-        print
-        print " * by target :",self.by_target
-        print
-        print " * by pair :",self.by_pair
-        print
+        print("[REPORT]",tm)
+        print(" * account_type :",self.account_type)
+        print()
+        print(" * account_relations :",self.account_relations)
+        print()
+        print(" * by voter :",self.by_voter)
+        print()
+        print(" * by target :",self.by_target)
+        print()
+        print(" * by pair :",self.by_pair)
+        print()
         self.dvcount = 0
         self.account_type = dict()
         self.account_relations = dict()
@@ -75,7 +76,7 @@ class WatchingTheWatchersBot:
         def lookup_accounts(acclist):
             def user_info(accounts,bclient):
                 if len(acclist) != len(accounts):
-                    print "OOPS:",len(acclist),len(accounts),acclist
+                    print("OOPS:",len(acclist),len(accounts),acclist)
                 for index in range(0,len(accounts)):
                     a = accounts[index]
                     account = acclist[index]
@@ -124,7 +125,7 @@ class WatchingTheWatchersBot:
         self.wtw.report(tm)
 
 obs = textFileLogObserver(io.open("watchingthewatchers.log", "a"))
-print "NOTE: asyncsteem logging to watchingthewatchers.log"
+print("NOTE: asyncsteem logging to watchingthewatchers.log")
 log = Logger(observer=obs,namespace="asyncsteem")
 bc = ActiveBlockChain(reactor,rewind_days=1,log=log,nodelist="stage")
 wtw = WatchingTheWatchers()

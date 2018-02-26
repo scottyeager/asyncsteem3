@@ -1,5 +1,7 @@
 #!/usr/bin/python
+from __future__ import print_function
 import sys
+sys.path.append('../')
 from datetime import timedelta
 import time
 import io
@@ -28,18 +30,18 @@ class TestBot:
         self.hourcount = self.hourcount + 1
         now = time.time()
         total_duration = str(timedelta(seconds=now-self.start))
-        print colored("* HOUR mark: Processed "+str(self.hourcount)+ " blockchain hours in "+ total_duration,"green")
-        if self.hourcount == 1*24: 
-            print "Ending eventloop"
+        print(colored("* HOUR mark: Processed "+str(self.hourcount)+ " blockchain hours in "+ total_duration,"green"))
+        if self.hourcount == 1*24:
+            print("Ending eventloop")
             reactor.stop()
 
 obs = textFileLogObserver(io.open("benchmark_asyncsteem.log", "a"))
-print "NOTE: asyncsteem logging to benchmark_asyncsteem.log"
+print("NOTE: asyncsteem logging to benchmark_asyncsteem.log")
 log = Logger(observer=obs,namespace="asyncsteem")
 nl = "stage" #"bench_stage","bench1","bench2","bench3","bench4","bench5","bench6","bench7","bench8"]:
-print "Benchmarking a full day of blocks for",nl
+print("Benchmarking a full day of blocks for",nl)
 bc = ActiveBlockChain(reactor,log=log,rewind_days=1,nodelist=nl)
 tb = TestBot()
 bc.register_bot(tb,"benchmark")
 reactor.run()
-print "Done."
+print("Done.")

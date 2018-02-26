@@ -1,11 +1,10 @@
-#!/usr/bin/python
 import dateutil.parser
 
 class DateFinder(object):
     """Class for finding the first block measured from a given time in the past."""
     def __init__(self,client,log):
         """Constructor
-        
+
         Args:
             client : The asyncsteem JSON-RPC RpcClient to use.
             log    : The Twisted asynchonous logger to use.
@@ -16,7 +15,7 @@ class DateFinder(object):
         self.active_queries = 0
     def __call__(self,on_found,trigger_time=None):
         """Find a block that matches the given time and call callback
-        
+
         Args:
             on_found : callback for result
             trigger_time : The time to look for, this MUST be a time in the past, but a time newer than the genesis block.
@@ -39,7 +38,7 @@ class DateFinder(object):
                         ddt = dateutil.parser.parse(event["timestamp"])
                         if ddt < trigger_time:
                             #Our guess was to early
-                            if blk > self.lower_limit: 
+                            if blk > self.lower_limit:
                                 if self.upper_limit > 0 and self.upper_limit - blk < 2:
                                     #We found our target block
                                     self.found = True
@@ -53,7 +52,7 @@ class DateFinder(object):
                                         self.log.info("Looking for block in range {rng!r}",rng=[self.lower_limit,self.upper_limit])
                         else:
                             #Our best guess was either to late or spot on.
-                            if self.upper_limit == -1 or blk <= self.upper_limit: 
+                            if self.upper_limit == -1 or blk <= self.upper_limit:
                                 if blk - self.lower_limit < 2:
                                     #We found our target block.
                                     self.found = True
@@ -88,21 +87,3 @@ class DateFinder(object):
         get_block(10000000,0)
         get_block(20000000,1)
         get_block(30000000,2)
-
-if __name__ == "__main__":
-    import sys
-    from twisted.internet import reactor
-    from jsonrpc import RpcClient
-    from datetime import date
-    from dateutil import relativedelta
-    from twisted.logger import Logger, textFileLogObserver
-    def process_blockno(bno):
-        print "BLOCK: ",bno
-    obs = textFileLogObserver(sys.stdout)
-    log = Logger(observer=obs,namespace="blockfinder_test")
-    rpcclient = RpcClient(reactor,log,stop_when_empty=True)
-    datefinder = DateFinder(rpcclient,log)
-    ddt = date.today() - relativedelta.relativedelta(hour=0,days=1)
-    datefinder(process_blockno,ddt)
-    rpcclient()
-    reactor.run()

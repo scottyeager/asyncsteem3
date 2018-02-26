@@ -1,39 +1,20 @@
-#!/usr/bin/python
 """Version of the JSON-RPC library that should work as soon as full-API nodes start implementing the actual JSON-RPC specification"""
-from __future__ import print_function
 import time
 import json
-import nodesets
-from twisted.web.client import Agent, readBody
+from . import nodesets
+from io import BytesIO
+from twisted.web.client import Agent, readBody, FileBodyProducer
 from twisted.web.http_headers import Headers
 from twisted.internet import defer
-
-#Simple helper class for JSON-RPC response storage 
-class _StringProducer(object):
-    """Helper class, implements IBodyProducer"""
-    #implements(IBodyProducer)
-    def __init__(self, body):
-        self.body = body
-        self.length = len(body)
-    def startProducing(self, consumer):
-        """startProducing"""
-        consumer.write(self.body)
-        return defer.succeed(None)
-    def pauseProducing(self):
-        """dummy pauseProducing, does nothing"""
-        pass
-    def stopProducing(self):
-        """dummy stopProducing, does nothing"""
-        pass
 
 #This class holds a queued JSON-RPC command and also holds references to it's callbacks
 class _QueueEntry(object):
     """Helper class for managing in-queue JSON-RPC command invocations"""
     def __init__(self, arpcclient, command, arguments, cmd_id, log):
-        self.rpcclient = arpcclient    #We keep a reference to the RpcClient that we pass to content and error handlers. 
+        self.rpcclient = arpcclient    #We keep a reference to the RpcClient that we pass to content and error handlers.
         self.command = command         #The name of the API call
         self.arguments = arguments     #The API call arguments
-        self.cmd_id = cmd_id           #Sequence number for this command 
+        self.cmd_id = cmd_id           #Sequence number for this command
         self.result_callback = None    #Callback for the result, defaults to None
         self.error_callback = None     #Callback for error results, defaults to None
         self.log = log                 #The asynchonous logger
@@ -82,13 +63,13 @@ class RpcClient(object):
                  log,                      #The asynchonous logger
                  nodes=None,               #If set, nodes overrules the nodelist list of nodelist. NOTE, this will set max_batch_size to one!
                  max_batch_size=None,      #If set, max_batch_size overrules the max_batchsize of nodelist.
-                 nodelist = "default",     #Other than "default", "stage" can be used and will use api.steemitstage.com 
+                 nodelist = "default",     #Other than "default", "stage" can be used and will use api.steemitstage.com
                                            # with a max_batch_size of 16
-                 parallel=16,              #Maximum number of paralel outstanding HTTPS JSON-RPC at any point in time. 
+                 parallel=16,              #Maximum number of paralel outstanding HTTPS JSON-RPC at any point in time.
                  rpc_timeout=15,           #Timeout for a single HTTPS JSON-RPC query.
                  stop_when_empty= False):  #Stop the reactor then the command queue is empty.
         """Constructor for asynchonour JSON-RPC client.
-        
+
         Args:
                 areactor : The Twisted reactor
                 log      : The Twisted asynchonous logger
@@ -97,7 +78,7 @@ class RpcClient(object):
                 nodelist : Name of the nodelist to use. "default" and "stage" are currently valid values for this field.
                 parallel : Maximum number of paralel outstanding HTTPS JSON-RPC at any point in time.
                 rpc_timeout : Timeout (in seconds) for a single HTTPS JSON-RPC query.
-                stop_when_empty : Boolean indicating if reactor should be stopped when the command queue is empty and no active HTTPS 
+                stop_when_empty : Boolean indicating if reactor should be stopped when the command queue is empty and no active HTTPS
                                   sessions remain.
         """
         self.reactor = areactor
@@ -122,7 +103,7 @@ class RpcClient(object):
         self.errorcount = 0            #The number of errors seen since the previous node rotation.
         self.entries = dict()          #Here the actual commands from the command queue are stored, keyed by sequence number.
         self.queue = list()            #The actual command queue is just a list of sequence numbers.
-        self.active_call_count = 0     #The current number of active HTTPS POST calls. 
+        self.active_call_count = 0     #The current number of active HTTPS POST calls.
         self.stop_when_empty = stop_when_empty
         self.log.info("Starting off with node {node!r}.",node = self.nodes[self.node_index])
     def _next_node(self, reason):
@@ -133,7 +114,7 @@ class RpcClient(object):
         #Only if whe have been waiting a bit longer than the RPC timeout time, OR we have seen a bit more than the max amount of
         # paralel HTTPS requests in errors, then it will be OK to rotate once more.
         if ago > (self.rpc_timeout + 2) or self.errorcount > (self.parallel + 1) :
-            self.log.error("Switshing from {oldnode!r} to an other node due to error : {reason!r}",oldnode=self.nodes[self.node_index], reason=reason)
+            self.log.error("Switching from {oldnode!r} to an other node due to error : {reason!r}",oldnode=self.nodes[self.node_index], reason=reason)
             self.last_rotate = now
             self.node_index = (self.node_index + 1) % len(self.nodes)
             self.errorcount = 0
@@ -153,7 +134,7 @@ class RpcClient(object):
             self.log.error("Queue is empty and no active HTTPS-POSTs remaining.")
             if self.stop_when_empty:
                 #On request, stop reactor when queue empty while no active queries remain.
-                self.reactor.stop() 
+                self.reactor.stop()
         return dv
     def _process_batch(self, subqueue):
         """Send a single batch of JSON-RPC commands to the server and process the result."""
@@ -170,13 +151,16 @@ class RpcClient(object):
                 for num in subqueue:
                     qarr.append(self.entries[num]._get_rpc_call_object())
                 jo = json.dumps(qarr)
+
+            call = FileBodyProducer(BytesIO(str.encode(str(jo))))
             url = "https://" + self.nodes[self.node_index] + "/"
-            url = str.encode(url)
-            deferred = self.agent.request('POST',
+            url = str.encode(str(url))
+            deferred = self.agent.request(b'POST',
                                           url,
                                           Headers({"User-Agent"  : ['Async Steem for Python v0.6.1'],
                                                    "Content-Type": ["application/json"]}),
-                                          _StringProducer(jo))
+                                          call)
+
             def process_one_result(reply):
                 """Process a single response from an JSON-RPC command."""
                 try:
@@ -200,7 +184,7 @@ class RpcClient(object):
                         else:
                             self.log.error("Error: Invalid JSON-RPC id in entry {rid!r}",rid=reply_id)
                     else:
-                        self.log.error("Error: Invalid JSON-RPC response without id in entry: {ris!r}.",rid=reply_id)
+                        self.log.error("Error: Invalid JSON-RPC response without id in entry: {ris!r}.")
                 except Exception as ex:
                     self.log.failure("Error in _process_one_result {err!r}",err=str(ex))
             def handle_response(response):
@@ -213,7 +197,7 @@ class RpcClient(object):
                         """Process response body for JSON-RPC batch query invocation."""
                         try:
                             results = None
-                            #The bosy SHOULD be JSON, it not always is.
+                            #The body SHOULD be JSON, it not always is.
                             try:
                                 results = json.loads(bodystring)
                             except Exception as ex:
@@ -306,107 +290,3 @@ class RpcClient(object):
         if val is None:
             return False
         return True
-
-if __name__ == "__main__":
-    from twisted.internet import reactor
-    from twisted.logger import Logger, textFileLogObserver
-    from datetime import datetime as dt
-    import dateutil.parser
-    import sys
-    #When processing a block we call this function for each downvote/flag
-    def process_vote(vote_event,clnt):
-        #Create a new JSON-RPC entry on the queue to fetch post info, including detailed vote info
-        opp = clnt.get_content(vote_event["author"],vote_event["permlink"])
-        #This one is for processing the results from get_content
-        def process_content(event, client):
-            #We geep track of votes given and the total rshares this resulted in.
-            start_rshares = 0.0
-            #Itterate over all votes to count rshares and to find the downvote we are interested in.
-            found = False
-            for vote in  event["active_votes"]:
-                #Look if it is our downvote.
-                if vote["voter"] == vote_event["voter"] and vote["rshares"] < 0:
-                    found = True
-                    #Diferentiate between attenuating downvotes and reputation eating flags.
-                    if start_rshares + float(vote["rshares"]) < 0:
-                        print(vote["time"],\
-                              "FLAG",\
-                              vote["voter"],"=>",vote_event["author"],\
-                              vote["rshares"]," rshares (",\
-                              start_rshares , "->", start_rshares + float(vote["rshares"]) , ")")
-                    else:
-                        print(vote["time"],\
-                              "DOWNVOTE",\
-                              vote["voter"],"=>",vote_event["author"],\
-                              vote["rshares"],"(",\
-                              start_rshares , "->" , start_rshares + float(vote["rshares"]) , ")")
-                #Update the total rshares recorded before our downvote
-                start_rshares = start_rshares + float(vote["rshares"])
-            if found == False:
-                print("vote not found, possibly to old.",vote_event["voter"],"=>",vote_event["author"],vote_event["permlink"])
-        #Set the above closure as callback.
-        opp.on_result(process_content)
-    #This is a bit fiddly at this low level,  start nextblock a bit higer than where we start out
-    nextblock = 19933100
-    obs = textFileLogObserver(sys.stdout)
-    log = Logger(observer=obs,namespace="jsonrpc_test")
-    #Create our JSON-RPC RpcClient
-    rpcclient = RpcClient(reactor,log)
-    #Count the number of active block queries
-    active_block_queries = 0
-    sync_block = None
-    #Function for fetching a block and its operations.
-    def get_block(blk):
-        """Request a single block asynchonously."""
-        global active_block_queries
-        #This one is for processing the results from get_block
-        def process_block(event, client):
-            """Process the result from block getting request."""
-            global active_block_queries
-            global nextblock
-            global sync_block
-            active_block_queries = active_block_queries - 1
-            if event != None:
-                if sync_block != None and blk >= sync_block:
-                    sync_block = None
-                #Itterate over all operations in the block.
-                for t in event["transactions"]:
-                    for o in t["operations"]:
-                        #We are only interested in downvotes
-                        if o[0] == "vote" and o[1]["weight"] < 0:
-                            #Call process_vote for each downvote
-                            process_vote(o[1],client)
-                #fetching network clients alive.
-                get_block(nextblock)
-                nextblock = nextblock + 1
-                if active_block_queries < 8:
-                    treshold = active_block_queries * 20
-                    behind = (dt.utcnow() - dateutil.parser.parse(event["timestamp"])).seconds
-                    if behind >= treshold:
-                        print("Behind",behind,"seconds while",active_block_queries,"queries active. Treshold =",treshold)
-                        print("Spinning up an extra parallel query loop.")
-                        get_block(nextblock)
-                        nextblock = nextblock + 1
-            else:
-                if sync_block == None or blk <= sync_block:
-                    sync_block = blk
-                    get_block(blk)
-                else:
-                    print("Overshot sync_block")
-                    if active_block_queries == 0:
-                        print("Keeping one loop alive")
-                        get_block(blk)
-                    else:
-                        print("Scaling down paralel HTTPS queries",active_block_queries)
-        #Create a new JSON-RPC entry on the queue to fetch a block.
-        opp = rpcclient.get_block(blk)
-        active_block_queries = active_block_queries + 1
-        #Bind the above closure to the result of get_block
-        opp.on_result(process_block)
-    #Kickstart the process by kicking off eigth block fetching operations.
-    for block in range(19933000, 19933100):
-        get_block(block)
-    #By invoking the rpcclient, we will process queue entries upto the max number of paralel HTTPS requests.
-    rpcclient()
-    #Start the main twisted event loop.
-    reactor.run()

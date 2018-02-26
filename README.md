@@ -1,17 +1,38 @@
-# asyncsteem
-Twisted based asynchonous python steem API. 
+# asyncsteem3
+Twisted based asynchonous python STEEM JSON-RPC API.
 
-This project aims to implement an asynchronous python library for the STEEM JSON-RPC API.
+This project is a Python 3 port of asyncsteem by @pibara, which aims to implement a complete asynchronous alternative to [steem-python](https://github.com/steemit/steem-python). It is designed to work with the defacto Python asynchonous networking framework [twisted](https://twistedmatrix.com/trac/). Twisted is the only dependency for asyncsteem3.
 
-Eventually asyncsteem aims to become a complete asynchronous alternative to [steem-python](https://github.com/steemit/steem-python) that runs under both Python 2 and Python 3. 
-The current beta however runs only on Python 2 and does not yet implement cryptographic signing operations that would be needed to, post, vote, etc.
-The asyncsteem library is a asynchonous library, designed to woth with the defacto Python asynchonous networking framework [twisted](https://twistedmatrix.com/trac/).
+The current beta does not yet implement cryptographic signing operations that would be needed to, post, vote, etc. However, it is easy to create bots for collecting stats or dispatching alerts by monitoring the blockchain with minimal boilerplate code.
 
-If you wish to stay informed on my progress on this library, please follow [@mattockfs](https://steemit.com/@mattockfs) on steemit or join [this](https://discord.gg/dUjUqmE) discord server. I'll try to blog regularily on my progress. Donations for this project in the form of STEEM or in the form of steemit post upvotes are very much welcomed, as are pull requests with featyres or bug fixes.
+If you wish to stay informed on the progress of asyncsteem, please follow [@mattockfs](https://steemit.com/@mattockfs) on steemit or join [this](https://discord.gg/dUjUqmE) discord server. Donations for this project in the form of STEEM or in the form of steemit post upvotes are very much welcomed, as are pull requests with features or bug fixes.
 
-Please note that there currently is no install script or pip install available yet, the code is currently in **early beta**, and ease of install is something I havent gotten to yet at the moment.
+## Install
 
-In order to use the asyncsteem library, you should define a Python class that implements one or more of the following methods:
+A setup.py file is included, if you wish to install the package.
+
+```
+python setup.py install
+```
+
+## Usage
+
+See examples/print_votes.py for a simple bot that spits out info about votes happening on the Steem blockchain.
+
+```
+class DemoBot(object):
+    def vote(self,tm,vote_event,client):
+        w = vote_event["weight"]
+        if w > 0:
+            print("Vote by",vote_event["voter"],"for",vote_event["author"])
+        else:
+            if w < 0:
+                print("Downvote by",vote_event["voter"],"for",vote_event["author"])
+            else:
+                print("(Down)vote by",vote_event["voter"],"for",vote_event["author"],"CANCELED")
+```
+
+A bot class can implement one or more of the following methods, which are called whenever a new event of that type arrives:
 
 * account\_create
 * account\_create\_with\_delegation
@@ -26,7 +47,7 @@ In order to use the asyncsteem library, you should define a Python class that im
 * convert
 * custom
 * custom\_json
-* delegate_\vesting_shares
+* delegate\_vesting_shares
 * delete\_comment
 * feed\_publish
 * limit\_order\_cancel
@@ -50,42 +71,15 @@ These methods map one on one to the operation types that are found on the blockc
 * day
 * week
 
-An example :
+### Rewind
 
-```python
-class DemoBot:
-    def vote(self,tm,vote_event,client):
-        w = vote_event["weight"]
-        if w > 0:
-            print "Vote by",vote_event["voter"],"for",vote_event["author"]
-        else:
-            if w < 0:
-                print "Downvote by",vote_event["voter"],"for",vote_event["author"]
-            else:
-                print "(Down)vote by",vote_event["voter"],"for",vote_event["author"],"CANCELED"
-
-bot = DemoBot()
-```
-
-In order to use the bot, you will need to use Twisted:
-
-```python
-from twisted.internet import reactor
-
-...
-
-blockchain = ActiveBlockChain(reactor)
-blockchain.register_bot(bot,"demobot")
-reactor.run()
-```
-
-This will let the bot start listening to new events from the STEEM blockchain.
-
-You may also instead opt to pick a day in the past where the bot should start streaming. This could come in handy if you want to test your code, or if you want to limit your bot's online time. 
+You may also instead opt to pick a day in the past where the bot should start streaming. This could come in handy if you want to test your code, or if you want to limit your bot's online time.
 
 ```python
 blockchain = ActiveBlockChain(reactor,rewind_days=7)
 ```
+
+### Other API Methods
 
 While the core of the library is aimed at streaming operations from the blockchain, it is likely your bot will need to query other JSON-RPC API's as well. For this, the *client* argument of the bots methods provides the entry point. But note, the API is asynchonous and works through a command queue and a client pool. Let us zoom in a bit on how to use the *client* argument in our code.
 
@@ -94,7 +88,7 @@ While the core of the library is aimed at streaming operations from the blockcha
         def process_vote_content(event, client):
             for vote in  event["active_votes"]:
                 if vote["voter"] == vote_event["voter"] and vote["rshares"] != 0:
-                    print vote["time"],vote["voter"],"=>",vote_event["author"],vote["rshares"]
+                    print( vote["time"],vote["voter"],"=>",vote_event["author"],vote["rshares"])
         opp = client.get_content(vote_event["author"],vote_event["permlink"])
         opp.on_result(process_vote_content)
 ```
@@ -105,7 +99,7 @@ In some cases, a JSON-RPC call may return an error for your command. You may cre
 
 ```python
    def err_handler(errno, msg, rpcclient):
-       print "OOPS:",msg,"(",errno,")"
+       print("OOPS:",msg,"(",errno,")")
    opp.on_error(err_handler)
 ```
 
@@ -181,6 +175,6 @@ You've seen the example using *get\_content*, this is one of a wide range of JSO
 * verify\_account\_authority
 * verify\_authority
 
-You will need to look elsewhere for now for documentation on the above API calls. When unsure about the exact syntax, please make sure to use an on\_error callback. Often the error messages can provide some info on correct usage.
+Documentation for steemd API calls can be found on [GitHub](https://steemit.github.io/steemit-docs/). Often the error messages can provide some info on correct usage—use an on\_error callback to print the error.
 
-As stated, the library is in early beta now. I would very much appreciate any feedback on my work so far, so please test out what there is and let me know what needs improvement. 
+Both asyncsteem and asyncsteem3 are beta releases. Please report any issues with asyncsteem3 to its own GitHub repository so they can be addressed or forwarded to asyncsteem as appropriate.

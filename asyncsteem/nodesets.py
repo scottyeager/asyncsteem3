@@ -1,4 +1,3 @@
-#!/usr/bin/python
 import copy
 def _make_nodesets():
     sets = dict()
