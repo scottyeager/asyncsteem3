@@ -1,7 +1,7 @@
 # asyncsteem3
 Twisted based asynchonous python STEEM JSON-RPC API.
 
-This project is a Python 3 port of [asyncsteem](https://github.com/pibara-utopian/asyncsteem) by [@pibara](github.com/pibara), which aims to implement a complete asynchronous alternative to [steem-python](https://github.com/steemit/steem-python). It is designed to work with the defacto Python asynchonous networking framework [twisted](https://twistedmatrix.com/trac/). Twisted is the only dependency for asyncsteem3.
+This project is a Python 3 port of [asyncsteem](https://github.com/pibara-utopian/asyncsteem), which aims to implement a complete asynchronous alternative to [steem-python](https://github.com/steemit/steem-python). It is designed to work with the defacto Python asynchonous networking framework [twisted](https://twistedmatrix.com/trac/). Twisted is the only dependency for asyncsteem3.
 
 The current beta does not yet implement cryptographic signing operations that would be needed to, post, vote, etc. However, it is easy to create bots for collecting stats or dispatching alerts by monitoring the blockchain with minimal boilerplate code.
 
